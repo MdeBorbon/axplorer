@@ -61,10 +61,10 @@ This should recover the 12-line G(4,4,3) arrangement as a defect-zero `known-nei
 
 ## First Axplorer smoke test
 
-Once the probe works, use a deliberately small CPU run:
+Once the probe works, use a deliberately small CPU run. For this first laptop test keep process-pool scoring off so that the experimental geometry setup stays in one process:
 
 ```bash
-python train.py --env_name hirzebruch_mutations --exp_name mutations-g4 --reflection_m 4 --seed_family gmm --size_radius 3 --local_search_steps 200 --gensize 500 --max_epochs 5 --max_steps 200 --num_samples_from_model 500 --pop_size 500 --ntest 50 --batch_size 32 --n_layer 4 --n_embd 256 --save_best true --cpu true
+python train.py --env_name hirzebruch_mutations --exp_name mutations-g4 --reflection_m 4 --seed_family gmm --size_radius 3 --local_search_steps 200 --gensize 500 --max_epochs 5 --max_steps 200 --num_samples_from_model 500 --pop_size 500 --ntest 50 --batch_size 32 --n_layer 4 --n_embd 256 --save_best true --process_pool false --cpu true
 ```
 
 Do not scale this up yet. The first purpose is to verify that Axplorer learns the known G(4,4,3) -> G(4,1,3) move and that generation/local search remain stable on the laptop.
