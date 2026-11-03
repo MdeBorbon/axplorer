@@ -6,6 +6,7 @@ from src.envs.mutations_tabu import (
     HirzebruchTabuMutationDataPoint,
     HirzebruchTabuMutationEnvironment,
 )
+from src.envs.projective_equivalence import classify_imprimitive_reflection_copy
 
 logger = getLogger()
 
@@ -24,6 +25,13 @@ class HirzebruchExploreDataPoint(HirzebruchTabuMutationDataPoint):
 
     DEFECT_MAGNITUDE_WEIGHT = 0.02
     SINGLE_SWAP_PROBABILITY = 0.60
+    KNOWN_REFLECTION_ORBIT_PENALTY = 10.0
+    ZERO_CLASS_CACHE = {}
+
+    @classmethod
+    def configure(cls, *args):
+        super().configure(*args)
+        cls.ZERO_CLASS_CACHE = {}
 
     def line_error_stats(self):
         selected = self.selected_indices()
@@ -48,16 +56,34 @@ class HirzebruchExploreDataPoint(HirzebruchTabuMutationDataPoint):
         novelty_bonus = self.novelty() / (10000.0 * (self.POOL_SIZE + 1))
         return bad_fraction + self.DEFECT_MAGNITUDE_WEIGHT * mse - novelty_bonus
 
+    def reflection_orbit_label(self):
+        """Classify exact zeroes against known imprimitive reflection families."""
+        if self.defect() != 0:
+            return None
+
+        key = tuple(self.selected_indices())
+        if key in self.ZERO_CLASS_CACHE:
+            return self.ZERO_CLASS_CACHE[key]
+
+        selected_lines = [self.CANDIDATE_LINES[i] for i in key]
+        label, _ = classify_imprimitive_reflection_copy(selected_lines)
+        self.ZERO_CLASS_CACHE[key] = label
+        return label
+
     def _local_energy(self):
         energy = self._exploration_energy_without_tabu()
         if self.is_tabu():
             energy += self.TABU_PENALTY
+        elif self.defect() == 0 and self.reflection_orbit_label() is not None:
+            # A disguised projective copy of a known reflection arrangement is
+            # useful validation, but not a discovery target.  Make it repulsive
+            # so local search and later Axplorer training continue past it.
+            energy += self.KNOWN_REFLECTION_ORBIT_PENALTY
         return energy
 
     def calc_score(self):
         # Larger Axplorer score is better.  Keep every ordinary candidate
-        # positive while sending the exact reflection endpoints far down the
-        # ranking through the inherited tabu energy.
+        # positive while sending known reflection zeroes far down the ranking.
         energy = self._local_energy()
         self.score = float(2_000_000_000.0 - 1_000_000.0 * energy)
 
@@ -126,4 +152,8 @@ class HirzebruchExploreEnvironment(HirzebruchTabuMutationEnvironment):
         logger.info(
             "Exploratory objective: defective-line fraction + %.3f * mean-square vertex error",
             self.data_class.DEFECT_MAGNITUDE_WEIGHT,
+        )
+        logger.info(
+            "Known imprimitive reflection zeroes receive orbit penalty %.1f",
+            self.data_class.KNOWN_REFLECTION_ORBIT_PENALTY,
         )
