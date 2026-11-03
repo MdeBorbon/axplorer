@@ -2,6 +2,8 @@
 
 This branch explores Hirzebruch arrangements by mutating known rank-three complex reflection arrangements rather than fixing the number of lines in advance.
 
+Before starting or continuing automated work, read `AGENTS.md` for the research/workflow rules and `EXPERIMENTS.md` for the chronological record of completed runs and current next step.
+
 ## Objective
 
 For an arrangement A of N projective lines, let v(L) be the number of vertices on a line L. Define
