@@ -320,3 +320,83 @@ No other seeds or transformer runs were attempted. Next proposed experiment:
 test bounded coordinated swaps that break the pencil structure, comparing escape
 and retained geometry with the existing moves while preserving the size-neutral
 objective. Merely increasing trial counts is not supported by these results.
+
+---
+
+## 2026-11-03 — Exact four-for-four enumeration: no completion
+
+Question: can the saved two-pencil arrangement reach N=12, D=0 by four
+replacements? No stochastic search was run. The original N=12 arrangement has
+D=576, four bad lines, and profile `{2:32,4:1,8:1}`. Its indices and equations
+are unchanged from the preceding entry.
+
+```bash
+python -u tools/mutation_four_escape.py --output experiments/mutations-four-escape-verified
+python -m unittest tools.test_mutation_four_escape
+```
+
+The script rebuilds the m=4 candidate pool over Q(i) and checks exact set equality
+with all 63 reconstructed, indexed candidates. Floating-point coordinates assign
+the established indices only; all incidence and enumeration decisions use exact
+Gaussian rationals. It also checks the input's twelve exact equations.
+The output directory must be new. Two regression tests passed, covering the
+complete enumeration and exact certification of a known projective equivalence.
+
+### Obstructions and completeness
+
+Write A=`[2,6,23,29,39,44,55,56]` for the eight-line pencil at P=`[1:-1:1]`,
+and B=`[24,49,53,59]` for the four-line pencil at Q=`[1:-i:i]`.
+
+1. With at most three deletions, a surviving B-line still meets at least five
+   surviving A-lines plus Q, so already has at least six vertices. Adding lines
+   cannot remove vertices. Exact enumeration confirms this for all
+   `1+12+66+220=299` subsets with zero through three deletions.
+2. Among four deletions, any mixed choice leaves a B-line with at least six
+   vertices. Exactly 424 of the 495 deletion sets are excluded this way.
+3. Deleting all of B leaves eight concurrent lines. Any new line not through P
+   has eight distinct intersections with these lines, exceeding the target five.
+   If every new line passes through P, all twelve lines have only one vertex.
+   This proves impossibility even for additions outside the candidate pool.
+   Computationally, of the 51 pool lines outside the original arrangement,
+   50 have eight intersections with A; only candidate 7 passes through P.
+4. The remaining 70 deletion sets retain four A-lines and all of B. Each of
+   these eight lines has five vertices: its pencil centre and four grid points.
+   Every added line must preserve those vertex sets. A line through neither
+   centre must be a collinear grid transversal, one point per row and column.
+   A distinct line through either centre must pass through both, since otherwise
+   it creates new vertices on the opposite pencil. Thus the only exception to
+   the grid-transversal rule is PQ, candidate 7, with equation `y+z=0`.
+
+### Exhaustive grid results
+
+For all 70 survivor sets, the script enumerates admissible pool lines, verifies
+their row-column permutations, and independently constructs all transversals
+from all 24 permutations (1,680 exact collinearity checks in total).
+
+| Surviving A-lines | Only transversal | Equation | Columns in B order |
+|---|---|---|---|
+| `[23,29,39,56]` | 51 | `x+(1-i)y/2+(-1+i)z/2=0` | `[3,0,1,2]` |
+| `[23,44,55,56]` | 19 | `x=0` | `[2,1,0,3]` |
+
+The other 68 survivor sets admit no transversal. The unrestricted geometric
+enumeration gives exactly the same result: there are no additional transversals
+outside the pool. Hence there are **zero transversal quartets**, and also zero
+quartets formed from PQ plus three transversals. The quartet-test loops are
+exhaustive but empty, rather than a sampled failure to find a zero.
+
+No exact zeroes, unclassified zeroes, or new near-zeroes were produced. Counts
+of concurrent 3-net, two-pair, and other zero patterns are all zero. There is no
+best completed candidate or multiplicity profile to report for this enumeration.
+The script saves exact coordinates and full lattices before classifying any zero,
+certifies a returned projective correspondence symbolically, and stops on an
+unclassified zero; these branches found no candidates in this run.
+
+`experiments/mutations-four-escape-verified/enumeration.json` contains all exact
+pool equations, deletion certificates, all 70 grids and admissible lists,
+unrestricted transversal equations, and the empty zero list.
+
+Conclusion: **no four-for-four escape exists for this concrete arrangement,
+even allowing arbitrary new complex projective lines**. The lower bound on a
+fixed-N escape is at least five replacements; existence at five is not established.
+Next proposed investigation: derive the surviving-line constraints for five
+deletions before considering another finite enumeration. No further search run.
