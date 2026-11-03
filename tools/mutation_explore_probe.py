@@ -2,7 +2,7 @@
 """Probe the size-neutral exploratory Hirzebruch mutation search."""
 
 import argparse
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 import sys
 
@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.envs.mutations_explore import HirzebruchExploreDataPoint
+from src.envs.projective_equivalence import classify_imprimitive_reflection_copy
 
 
 def configure(args):
@@ -54,6 +55,7 @@ def main():
     size_histogram = Counter()
     bad_fraction_histogram = Counter()
     zeroes = {}
+    zero_class_histogram = Counter()
     best_by_size = {}
 
     for _ in range(args.trials):
@@ -89,20 +91,31 @@ def main():
             best_by_size[n_lines] = record
 
         if defect == 0:
-            zeroes[d.features] = record
+            selected_lines = [cls.CANDIDATE_LINES[i] for i in selected]
+            reflection_label, _ = classify_imprimitive_reflection_copy(selected_lines)
+            classification = reflection_label or "UNCLASSIFIED"
+            zero_class_histogram[classification] += 1
+            zeroes[d.features] = (classification, record)
 
     print("defect histogram:", dict(sorted(defect_histogram.items())))
     print("line-count histogram:", dict(sorted(size_histogram.items())))
     print("(bad lines, total lines) histogram:", dict(sorted(bad_fraction_histogram.items())))
     print(f"distinct non-tabu zeroes: {len(zeroes)}")
+    if zero_class_histogram:
+        print("zero classifications:", dict(sorted(zero_class_histogram.items())))
 
-    for number, record in enumerate(zeroes.values(), start=1):
+    unclassified = 0
+    for number, (classification, record) in enumerate(zeroes.values(), start=1):
         bad_fraction, mse, defect, n_lines, novelty, n_bad, profile, selected = record
+        if classification == "UNCLASSIFIED":
+            unclassified += 1
         print(
-            f"[{number}] NEW ZERO: lines={n_lines}, novelty={novelty}, "
+            f"[{number}] ZERO [{classification}]: lines={n_lines}, novelty={novelty}, "
             f"multiplicities={profile}"
         )
         print("    selected candidate indices:", selected)
+
+    print(f"unclassified zeroes: {unclassified}")
 
     print("best non-tabu candidate by line count:")
     for n_lines in sorted(best_by_size):
