@@ -400,3 +400,131 @@ even allowing arbitrary new complex projective lines**. The lower bound on a
 fixed-N escape is at least five replacements; existence at five is not established.
 Next proposed investigation: derive the surviving-line constraints for five
 deletions before considering another finite enumeration. No further search run.
+
+---
+
+## 2026-11-03 — Exact five-for-five obstruction
+
+Question: can five replacements of the saved N=12 two-pencil arrangement yield
+D=0? Source remains D=576, bad=4/12, profile `{2:32,4:1,8:1}`. No stochastic
+search, pool expansion, or production objective change was made.
+
+```bash
+python tools/mutation_five_escape.py --output experiments/mutations-five-escape.json
+python -m unittest tools.test_mutation_five_escape
+```
+
+The certificate reads the exact source equations and previous four-replacement
+certificate, records their SHA-256 hashes, and uses Q(i) arithmetic exclusively.
+The script's initial transversal-count calculation was first checked interactively
+using the same 24 injections per core; the command above is its saved, reproducible
+implementation. This is an unrestricted projective calculation, not a pool search.
+
+### Geometric reduction
+
+Of the 792 five-deletion subsets, 448 already leave a line with more than five
+vertices: types (2,3) and (3,2). In type (2,3) only one B-line survives, so Q is
+no longer a vertex of the core: that line has **six**, not seven, vertices.
+This corrects the formula `9-a` in this boundary case without changing exclusion.
+The eight subsets of type (1,4) leave seven concurrent A-lines. An added line
+off P has at least seven vertices, whereas all additions through P give a pencil.
+Thus the only remaining cores are 280 of type (4,1) and 56 of type (5,0).
+
+Unify both cases as three **saturated** lines S through C and four **unsaturated**
+lines U through D. Their vertex counts are `[5,5,5,4,4,4,4]`. C and D exchange
+the roles of P and Q between the two cases. Each added line is of one of these
+three types:
+
+1. **Off C:** it must meet each S-line at a grid point. Those three points lie
+   on distinct U-lines; otherwise the added line equals a surviving U-line.
+   Enumerate the `4*3*2=24` injections from S to U. Two points determine the
+   line and exact collinearity tests the third. All such lines lie over Q(i),
+   even though arbitrary complex additions are allowed.
+2. **CD:** the centre connector creates no new vertex on any survivor.
+3. **Through C but different from CD:** it creates exactly one new point on
+   every U-line. That point cannot be an old grid point (which would force it
+   to equal an S-line) or D. Therefore at most **one** such line can be added:
+   two distinct C-lines meet each U-line at two distinct new points.
+
+If there are t off-C transversals, there can consequently be at most `t+2`
+added lines. Five additions require t>=3. Even the apparent continuous freedom
+in type 3 would become finite in a completion: an off-C transversal misses one
+U-line and creates a new point X there, forcing the type-3 line to be CX if used.
+Here the stronger counting obstruction already settles every core.
+
+### Complete counts and certificate
+
+| Deletion type | Cores with t=0 | t=1 | t=2 | t>=3 |
+|---|---:|---:|---:|---:|
+| (4,1) | 232 | 46 | 2 | 0 |
+| (5,0) | 46 | 10 | 0 | 0 |
+
+All 336 cores and 8,064 injection collinearity checks are recorded. Each core's
+certificate contains saturated/opposite indices, exact transversal equations,
+their three grid incidences, omitted U-line, new point there, and upper bound
+on added lines. In every case that upper bound is at most four. Consequently
+the set of admissible five-line completions is empty: zero quintets need full
+defect evaluation, zero exact zeroes occur, and no classification is applicable.
+No new near-zero is produced or ranked. The script fails explicitly if the
+counting bound is ever inconclusive rather than reporting a false exclusion.
+
+Regression checks cover the 792 deletion subsets and 336 cores, independently
+construct all off-centre transversals from pairs of old saturated-line vertices,
+and check the two-new-centre-lines obstruction on an exact synthetic grid.
+All three tests passed.
+
+**Conclusion:** combined with the previous certificate, the replacement distance
+from this concrete arrangement to any 12-line Hirzebruch arrangement is at least
+**six**, allowing arbitrary new complex lines. Existence at six is not established.
+The exact five-for-five problem is settled; objective assessment follows separately.
+
+### Multiplicity-excess assessment after the exact result
+
+```bash
+python tools/mutation_multiplicity_assess.py --output experiments/mutations-multiplicity-assessment.json
+```
+
+This deterministic diagnostic evaluates all 612 fixed-N one-line swaps using
+exact pool intersections and rational score arithmetic. It changes no search
+code and runs no annealing. Its hardcoded score constants match the current
+exploratory energy (0.02 times MSE, with the existing novelty tie-breaker).
+
+For a non-pencil Hirzebruch arrangement, any vertex p of multiplicity m has a
+line avoiding p. That line meets the m incident lines at distinct points, proving
+`m <= k+1`. More quantitatively, when `m>k+1`, all N-m lines avoiding p are bad,
+and `D >= 9(N-m)(m-k-1)^2`. Thus multiplicity excess detects a real geometric
+obstruction, though it is not sufficient for the Hirzebruch property and its
+vanishing says nothing about novelty or reflection equivalence.
+
+Let `M=sum_p max(0,m_p-(k+1))^2`. The trap has M=9 and relative excess
+`M/(k+1)^2=9/25`. The diagnostic compares
+`E_lambda = existing_energy + lambda*M/(k+1)^2` at N=12. Normalization avoids
+using an unscaled quadratic term when comparing different line counts; it does
+not itself enforce primary bad-fraction ordering.
+
+- No swap lowers M without increasing the bad-line fraction.
+- At lambda=0, 1/50, 1/20, 1/10, 1/4, or 1, no swap improves E_lambda.
+- The first strict improvement requires
+  `lambda > 286397/192000 = 1.491651041666...`.
+  A witness removes candidate 2 and adds 19: N=12, D=387, bad=8/12,
+  profile `{2:27,3:4,4:1,7:1}`, M=4. Its indices, error vector, and exact energy
+  are saved in the assessment artifact; its equations are in the saved pool.
+- At lambda=2, eight swaps improve the weighted energy; all have eight bad lines,
+  twice the starting count. No exact zero occurs in this neighborhood.
+
+Assessment: M is a justified structural diagnostic and a useful secondary
+tie-breaker, but a modest secondary penalty alone does not untrap this state.
+A sufficiently strong additive penalty would sacrifice the intended bad-line
+fraction priority. A strict secondary/lexicographic term cannot prefer these
+eight-bad-line moves over the four-bad-line starting state.
+
+The geometric information is also relevant to proposals: the current guided
+single-swap move preferentially removes bad lines, which here belong to the
+four-line pencil. The excessive multiplicity is supported by the eight *good*
+lines instead. Prefer testing geometry-guided coordinated moves targeting that
+pencil, with multiplicity excess recorded as a diagnostic, before enabling an
+energy change. A direct zero requires at least six replacements, but this does
+not preclude a sequence of smaller moves through intermediate arrangements.
+Production energy and moves remain unchanged. Next proposed work is a bounded
+deterministic study of such moves, not larger annealing runs or an assumed
+six-replacement completion.
