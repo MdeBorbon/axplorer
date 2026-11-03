@@ -1,4 +1,12 @@
+from pathlib import Path
+import sys
+
 import numpy as np
+
+# Allow direct execution via `python tools/generate_hirzebruch39_cyclic.py`.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from src.envs.hirzebruch import count_c4
 
