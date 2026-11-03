@@ -2,6 +2,8 @@
 """Probe the size-neutral exploratory Hirzebruch mutation search."""
 
 import argparse
+import json
+from datetime import datetime
 from collections import Counter
 from pathlib import Path
 import sys
@@ -14,8 +16,46 @@ from src.envs.mutations_explore import HirzebruchExploreDataPoint
 from src.envs.projective_equivalence import classify_imprimitive_reflection_copy
 
 
+class UnclassifiedZero(RuntimeError):
+    """Stop the probe as soon as an evaluated zero needs investigation."""
+
+
+def candidate_record(d):
+    selected = d.selected_indices()
+    fraction, mse, errors = d.line_error_stats()
+    return dict(
+        indices=selected, N=len(selected), D=d.defect(),
+        bad_lines=int(sum(errors != 0)), bad_fraction=fraction, mse=mse,
+        errors=errors.tolist(), multiplicities=dict(d.multiplicity_profile()),
+        # Each coefficient of ax+by+cz=0 is stored as [real, imaginary].
+        lines=[[[float(z.real), float(z.imag)] for z in d.CANDIDATE_LINES[i]]
+               for i in selected],
+    )
+
+
+class AuditedExploreDataPoint(HirzebruchExploreDataPoint):
+    """Observe evaluated zeroes, including proposals rejected by the annealer."""
+
+    seen_zeroes = set()
+    journal = None
+
+    def _local_energy(self):
+        energy = super()._local_energy()
+        key = tuple(self.selected_indices())
+        if self.defect() == 0 and key not in self.seen_zeroes:
+            label = self.reflection_orbit_label() or "UNCLASSIFIED"
+            record = dict(kind="evaluated_zero", classification=label,
+                          energy=energy, **candidate_record(self))
+            self.journal(record)
+            self.seen_zeroes.add(key)
+            print("evaluated zero:", label, list(key), flush=True)
+            if label == "UNCLASSIFIED":
+                raise UnclassifiedZero(str(key))
+        return energy
+
+
 def configure(args):
-    HirzebruchExploreDataPoint.configure(
+    AuditedExploreDataPoint.configure(
         args.reflection_m,
         args.seed_family,
         args.size_radius,
@@ -40,10 +80,21 @@ def main():
     parser.add_argument("--temperature", type=float, default=0.15)
     parser.add_argument("--candidate_top_k", type=int, default=20)
     parser.add_argument("--greedy_move_probability", type=float, default=0.25)
+    parser.add_argument("--output", type=Path,
+                        default=Path(f"mutation-explore-{datetime.now():%Y%m%d-%H%M%S-%f}.jsonl"),
+                        help="New JSONL audit file (will not overwrite an existing run).")
     args = parser.parse_args()
 
     configure(args)
-    cls = HirzebruchExploreDataPoint
+    cls = AuditedExploreDataPoint
+    audit = args.output.open("x")
+    def journal(record):
+        audit.write(json.dumps(record) + "\n")
+        audit.flush()
+    cls.journal = staticmethod(journal)
+    cls.seen_zeroes = set()
+    journal(dict(kind="parameters", **{k: str(v) if isinstance(v, Path) else v
+                                      for k, v in vars(args).items()}))
 
     print(
         f"seed={args.seed_family}(m={args.reflection_m}), seed_lines={cls.SEED_COUNT}, "
@@ -58,9 +109,16 @@ def main():
     zero_class_histogram = Counter()
     best_by_size = {}
 
-    for _ in range(args.trials):
-        d = cls(cls.POOL_SIZE, init=True)
-        d.local_search(improve_with_local_search=True)
+    for trial in range(args.trials):
+        try:
+            d = cls(cls.POOL_SIZE, init=True)
+            d.local_search(improve_with_local_search=True)
+        except UnclassifiedZero:
+            print("STOP: unclassified zero saved to", args.output, flush=True)
+            audit.close()
+            return
+
+        journal(dict(kind="trial_endpoint", trial=trial, **candidate_record(d)))
 
         defect = d.defect()
         selected = d.selected_indices()
@@ -125,6 +183,8 @@ def main():
             f"D={defect}, novelty={novelty}, multiplicities={profile}"
         )
         print("      selected candidate indices:", selected)
+    print("distinct evaluated zeroes (including rejected proposals):", len(cls.seen_zeroes))
+    audit.close()
 
 
 if __name__ == "__main__":

@@ -220,3 +220,103 @@ Primary questions:
 4. Do near-zeroes repeatedly exhibit the same local obstruction, suggesting a new geometry-aware mutation move?
 
 If the local search produces diverse near-zeroes but no genuinely new zero, the next stage should likely be a small Axplorer transformer run rather than indefinite tuning of the hand-written annealer.
+
+---
+
+## 2026-11-03 — Orbit validation, audited probes, and a two-pencil trap
+
+Questions: does orbit exclusion penalise the disguised reflection copy; does
+widening the size range escape the lower boundary; what causes repeated D=576?
+All work stayed on `mutations`. No objective, pool, or mutation rule changed.
+
+Commands (the first ran before audit instrumentation):
+
+```bash
+python tools/mutation_explore_probe.py --trials 6 --steps 300
+python -u tools/mutation_explore_probe.py --trials 8 --steps 700 --output experiments/mutations-orbit/m4-r6.jsonl
+python -u tools/mutation_explore_probe.py --trials 6 --steps 700 --size_radius 9 --min_lines 15 --output experiments/mutations-orbit/m4-r9-min15.jsonl
+python tools/mutation_near_analysis.py experiments/mutations-orbit/m4-r6.jsonl --defect 576 > experiments/mutations-orbit/two-pencil-analysis.json
+python -m unittest tools.test_mutation_audit
+```
+
+Common search parameters: `m=4`, `gmm`, pool 63, initial mutations 4,
+temperature 0.15, candidate top-k 20, greedy probability 0.25.
+The first two runs used radius 6, minimum 12 (allowed N=12,15,18).
+Runs use entropy-seeded NumPy generators; commands reproduce the setup, not
+the stochastic trajectories. Saved coordinates preserve the actual candidates.
+
+### Orbit exclusion and recording
+
+The previously reported disguised 15-line zero is not exact-set tabu, but is
+classified `G(4,1,3)` and receives exactly +10 energy (total 9.9999765625).
+Its indices, coordinates and profile are in `orbit-validation.json` in the
+artifact directory above. Regression tests verify classification, penalty,
+deduplicated auditing, coordinates, and save-before-stop behavior with an
+injected uncertain classifier result (this is not a real unclassified zero).
+Both tests passed.
+
+The probe previously only checked final endpoints. It now saves every distinct
+zero evaluated through the energy function, including rejected proposals and
+exact-set tabu zeroes, and stops immediately on `UNCLASSIFIED`. JSONL files also
+save parameters and every trial endpoint, with equations, per-line errors,
+defect, bad-line fraction and multiplicities. An omitted `--output` creates a
+timestamped file; existing files are never overwritten. Production training
+behavior is unchanged; the observer belongs to the probe subclass.
+
+### Search results
+
+- Initial 6x300 run: all endpoints N=12; defects
+  `{81:1,162:1,270:1,504:1,576:1,999:1}`. No final zero.
+  Best by bad-line fraction then MSE: D=576, bad=4/12,
+  profile `{2:32,4:1,8:1}`, indices
+  `[2,3,9,10,15,21,22,34,36,47,51,52]`.
+  Intermediate zeroes were not audited in this initial run.
+- Audited 8x700 run: all endpoints N=12; defects
+  `{27:1,45:1,486:1,504:1,576:3,792:1}`.
+  Best D=27, bad=3/12, profile `{2:7,3:13,5:2}`, indices
+  `[0,2,3,4,5,6,7,8,9,10,11,19]`; errors
+  `[0,0,0,1,0,0,1,0,0,1,0,0]`. This repeats the known reflection perturbation.
+  One distinct evaluated zero: `G(4,4,3)`, indices `0..11`,
+  profile `{3:16,4:3}`, bad=0/12. No final or unclassified zero.
+- Wider run, allowed N=15,18,21: all six endpoints N=15; defects
+  `{126:2,135:1,243:1,360:1,477:1}`.
+  Best D=126, bad=5/15, profile `{2:17,3:11,4:5,5:1,6:1}`, indices
+  `[0,1,2,4,5,6,7,8,9,10,11,18,20,31,42]`; errors
+  `[0,0,1,0,0,2,0,1,0,0,0,0,2,2,0]`.
+  One distinct evaluated zero: `G(4,1,3)`, indices
+  `[0,1,2,3,4,5,6,7,8,9,10,11,18,19,42]`, profile
+  `{2:12,3:16,6:3}`, bad=0/15. No final or unclassified zero.
+  Larger allowed sizes did not produce larger retained endpoints; this does
+  not establish that the trajectories never visited them.
+
+### Structural finding and stopping decision
+
+Three of eight audited N=12 endpoints had D=576, bad=4/12 and profile
+`{2:32,4:1,8:1}`. They consist of an eight-line pencil and a four-line pencil,
+with 32 distinct cross-intersections. For the analysed representative:
+
+- indices `[2,6,23,24,29,39,44,49,53,55,56,59]`;
+- eight-line pencil `[2,6,23,29,39,44,55,56]` at `[1:-1:1]`;
+- four-line pencil `[24,49,53,59]` at `[1:-i:i]`;
+- errors `[0,0,0,4,0,0,0,4,4,0,0,4]`;
+- eight lines have five vertices; the other four have nine vertices.
+
+Small Gaussian-rational reconstruction of its saved coefficients independently
+confirms the complete incidence lattice and errors using exact SymPy arithmetic.
+Exact equations and incidence sets are saved in `two-pencil-analysis.json`.
+This verifies the reconstructed concrete arrangement without rounded keys;
+it is not a claim that arbitrary floating-point reconstruction is certified.
+All 612 one-line swaps in the fixed pool were checked: none reduces the current
+energy; equal-energy neighbors exist. No zero occurred in that neighborhood.
+
+The mechanism generalises: two pencils of sizes 2k and k with distinct generic
+cross-intersections have N=3k, 2k good lines, k lines with vertex error k,
+bad fraction 1/3 and D=9k^3. Thus a stable bad fraction can conceal a large
+structured defect. This explains a repeated attraction of the current objective,
+not an obstruction to Hirzebruch arrangements in general.
+
+Stopped further searches to report this persistent structural trap, as required.
+No other seeds or transformer runs were attempted. Next proposed experiment:
+test bounded coordinated swaps that break the pencil structure, comparing escape
+and retained geometry with the existing moves while preserving the size-neutral
+objective. Merely increasing trial counts is not supported by these results.
